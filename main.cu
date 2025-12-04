@@ -2,8 +2,8 @@
 #include "src/mnistloader.hh"
 
 int main(){
-    auto train_images = loadMNISTImages(const std::string& path);
-    auto train_labels = loadMNISTLabels("train-labels.idx1-ubyte");
+    auto train_images = loadMNISTImages("mnist-dataset/train-images.idx3-ubyte");
+    auto train_labels = loadMNISTLabels("mnist-dataset/train-labels.idx1-ubyte");
 
     NN net;
     // forward sample
