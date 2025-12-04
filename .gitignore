@@ -1,0 +1,32 @@
+# VSCode settings
+.vscode/
+
+# MNIST dataset folder
+mnist-dataset/
+mnist-dataset/*
+
+# Build directories
+build/
+bin/
+obj/
+out/
+
+# CUDA compilation outputs
+*.o
+*.obj
+*.ptx
+*.cubin
+*.fatbin
+*.linkinfo
+
+
+# Python cache (if using scripts)
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
