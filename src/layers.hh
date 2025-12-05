@@ -1,46 +1,40 @@
 #pragma once
 
 #include "tensor.hh"
-#include "kernels.cu"
+#include "kernels.hh"
 
-class Linear{
+class Linear {
 public:
-    Tensor weight; // out, in 
+    Tensor weight; // in × out
     Tensor bias;
 
     Linear(size_t in, size_t out)
-        : weight({out,in}), bias({out})
+        : weight({in, out}), bias({out})
     {
-        // initalize weights to be random to start
-        for(size_t i = 0; i < weight.size(); i++){
-            weight[i] = (rand()/ float(RAND_MAX) - 0.5f) * 0.1f;
-
+        // initialize weights randomly
+        for (size_t i = 0; i < weight.size(); i++) {
+            weight[i] = (rand() / float(RAND_MAX) - 0.5f) * 0.1f;
         }
 
-        // bias starts at 0
-        for(size_t i = 0 ; i < bias.size(); i++){
+        // initialize bias to 0
+        for (size_t i = 0; i < bias.size(); i++) {
             bias[i] = 0.0f;
         }
 
         weight.toDevice();
         bias.toDevice();
-
     }
 
-    // forward 
-    Tensor forward(const Tensor& x){
+
+    Tensor forward(const Tensor& x) {
         // x: (batch, in)
-        auto out = matmul(x,weight); // shape (batch, out)
-
+        // weight: (in, out)
+        // output: (batch, out)
+        Tensor out = matmul(x, weight);
         addBias(out);
-
         return out;
     }
 
 private:
-    void addBias(Tensor&out);
-
-
-}
-
-
+    void addBias(Tensor& out);
+};

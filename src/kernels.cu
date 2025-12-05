@@ -1,126 +1,157 @@
-#include <cuda_runtime.h>
+ #include <cuda_runtime.h>
+#include <cmath>
+#include "kernels.hh"
+#include "layers.hh"  
 
-__global__ void addKernel(const float* a, const float* b, float* out, int size){
-    
-    int i = blockIdx.x * blockDim.y + threadIdx.x;
+__global__
+void addKernel(const float* a, const float* b, float* out, int size)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if(i< size){
+    if (i < size) {
         out[i] = a[i] + b[i];
     }
 }
 
-void tensorAdd(const Tensor& A, const Tensor& B, Tensor& Out){
-    
-    int size = A.size();
+void tensorAdd(const Tensor& A, const Tensor& B, Tensor& Out)
+{
+    int size  = A.size();
     int block = 256;
-    int grid = (size + block - 1)/block;
+    int grid  = (size + block - 1) / block;
 
-    //  call device kernel
-    addKernel<<<grid,block>>>(A.device(), B.device(), Out.device());
-
+    addKernel<<<grid, block>>>(A.device(), B.device(), Out.device(), size);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 
-__global__ void matmulKernel(const float* A, const float* B, float* C, int M, int N, int K){
-    
+__global__
+void matmulKernel(const float* A, const float* B, float* C,
+                  int M, int N, int K)
+{
+
     int row = blockIdx.y * blockDim.y + threadIdx.y;
     int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-
-    if(row < M && col < N){
-
-        float sum = 0;
-        for(int i = 0; i < K; i++){
-            sum+=a[row*K+i] * B[i*N + col];
+    if (row < M && col < N)
+    {
+        float sum = 0.f;
+        for (int i = 0; i < K; i++) {
+            sum += A[row * K + i] * B[i * N + col];
         }
-        c[row*N + col] = sum;
+        C[row * N + col] = sum;
     }
-} 
+}
 
+Tensor matmul(const Tensor& A, const Tensor& B)
+{
 
-Tensor matmul(const Tensor& A, const Tensor& B){
-
-    // get the size constants
     int M = A.shape()[0];
     int K = A.shape()[1];
+    int B_rows = B.shape()[0];
     int N = B.shape()[1];
 
-    // output is a M x N matrix
-    Tensor C({(size_t)M,(size_t)N});
+    if (K != B_rows) {
+        std::cerr << "ERROR: matmul dimension mismatch: "
+                << "A: " << M << "x" << K
+                << ", B: " << B_rows << "x" << N << std::endl;
+        exit(1);
+    }
 
-    dim3 block(16,16);
-    dim3 grid((N+15)/16, (M+15)/16);
+    Tensor C({(size_t)M, (size_t)N});
 
-    matmulKernel(A.device(), B.device(), C.device(), M, N, K);
+    dim3 block(16, 16);
+    dim3 grid((N + 15) / 16, (M + 15) / 16);
+
+    matmulKernel<<<grid, block>>>(A.device(), B.device(), C.device(), M, N, K);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     return C;
 }
 
-__global__ 
-void addBiasKernel(float* out, const float* bias, int batch, int out_dim){
-    int i = blockIDx.x * blockDim.x + threadIdx.x;
+__global__
+void addBiasKernel(float* out, const float* bias, int batch, int out_dim)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (i < batch * out_dim ){
+    if (i < batch * out_dim) {
         int col = i % out_dim;
         out[i] += bias[col];
     }
 }
 
-void Linear::addBias(Tensor& out){
-    int batch = out.shape()[0];
+void Linear::addBias(Tensor& out)
+{
+    int batch   = out.shape()[0];
     int out_dim = out.shape()[1];
-    insize = batch * out_dim;
+    int size    = batch * out_dim;
 
     int block = 256;
-    int grid = (size + block - 1)/ block;
+    int grid  = (size + block - 1) / block;
 
-    addBiasKernel<<<grid,block>>>(out.device(), bias.device(), batch, out_dim);  
+    addBiasKernel<<<grid, block>>>(out.device(), bias.device(), batch, out_dim);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
 
+
 __global__
-void reLuKernel(float* x, int size) {
+void reLuKernel(float* x, int size)
+{
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if(i < size){
-        x[i] = fmaxf(0.0f, x[i]);
+
+    if (i < size) {
+        x[i] = fmaxf(0.f, x[i]);
     }
 }
 
-void reLu(Tensor& t){
-    int size = t.size();
+void reLu(Tensor& t)
+{
+    int size  = t.size();
     int block = 256;
-    int grid = (size + block - 1)/block;
+    int grid  = (size + block - 1) / block;
 
     reLuKernel<<<grid, block>>>(t.device(), size);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 __global__
-void softmaxKernel(float* x, int rows, int cols){
+void softmaxKernel(float* x, int rows, int cols)
+{
     int row = blockIdx.x;
-    if(row >= rows){
+
+    if (row >= rows)
         return;
-    }
 
     float* row_ptr = x + row * cols;
 
+    // Find max (for numerical stability)
     float maxval = row_ptr[0];
-    for(int i = 0; i < cols; i++){
-        fmaxf(maxval,row_ptr[i]);
+    for (int i = 1; i < cols; i++) {
+        maxval = fmaxf(maxval, row_ptr[i]);
     }
 
-    float sum = 0;
-    for(int i = 0; i < cols; i++){
+    // Exponentiate
+    float sum = 0.f;
+    for (int i = 0; i < cols; i++) {
         row_ptr[i] = expf(row_ptr[i] - maxval);
-        sum+= row_ptr[i];
+        sum += row_ptr[i];
     }
 
-    for(int i = 0; i < cols; i++){
-        row_ptr[i] /= sum
+    // Normalize
+    for (int i = 0; i < cols; i++) {
+        row_ptr[i] /= sum;
     }
-
 }
 
-void softmax(Tensor& t){
+void softmax(Tensor& t)
+{
     int rows = t.shape()[0];
     int cols = t.shape()[1];
+
     softmaxKernel<<<rows, 1>>>(t.device(), rows, cols);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
