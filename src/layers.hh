@@ -2,38 +2,43 @@
 
 #include "tensor.hh"
 #include "kernels.hh"
+#include <cmath>
+#include <cstdlib>
 
 class Linear {
 public:
-    Tensor weight; // in × out
-    Tensor bias;
+    Tensor weights;   // (in, out)
+    Tensor bias;      // (out)
+    Tensor grad_w;    // same shape as weights
+    Tensor grad_b;    // same shape as bias
 
-    Linear(size_t in, size_t out)
-        : weight({in, out}), bias({out})
-    {
-        // initialize weights randomly
-        for (size_t i = 0; i < weight.size(); i++) {
-            weight[i] = (rand() / float(RAND_MAX) - 0.5f) * 0.1f;
-        }
-
-        // initialize bias to 0
-        for (size_t i = 0; i < bias.size(); i++) {
-            bias[i] = 0.0f;
-        }
-
-        weight.toDevice();
-        bias.toDevice();
+Linear(size_t in, size_t out)
+    : weights({in, out}),
+      bias({out}),
+      grad_w({in, out}),
+      grad_b({out})
+{
+    // He initialization for ReLU
+    float limit = sqrtf(6.0f / (in + out)); 
+    for (size_t i = 0; i < weights.size(); i++) {
+        weights[i] = (rand() / float(RAND_MAX) * 2 - 1) * limit;
     }
 
+    // initialize bias to 0
+    for (size_t i = 0; i < bias.size(); i++)
+        bias[i] = 0.f;
 
-    Tensor forward(const Tensor& x) {
-        // x: (batch, in)
-        // weight: (in, out)
-        // output: (batch, out)
-        Tensor out = matmul(x, weight);
-        addBias(out);
-        return out;
-    }
+    weights.toDevice();
+    bias.toDevice();
+}
+
+
+    //  x @ W + b
+    Tensor forward(const Tensor& x);
+
+    // Backward pass
+    Tensor backward(const Tensor& x, const Tensor& grad_out);
+    void step(float lr);
 
 private:
     void addBias(Tensor& out);
