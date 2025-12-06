@@ -33,7 +33,7 @@ Linear(size_t in, size_t out)
 }
 
 
-    // Forward pass: x @ W + b
+    //  x @ W + b
     Tensor forward(const Tensor& x);
 
     // Backward pass

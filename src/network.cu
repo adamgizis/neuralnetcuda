@@ -3,53 +3,61 @@
 
 #include "layers.hh"
 #include "kernels.hh"
+#include <vector>
 
 class NN {
 public:
     Linear fc1;
     Linear fc2;
 
-    NN() : fc1(784,128), fc2(128,10) {}
+    // Store activations for backward
+    Tensor h1_raw;  // pre-ReLU
+    Tensor h1;      // post-ReLU
+    Tensor logits;
 
-    Tensor forward(const Tensor& x) {
+    NN() 
+        : fc1(784,128), fc2(128,10),
+          h1_raw({1,128}), h1({1,128}), logits({1,10}) {} 
 
-        Tensor h1 = fc1.forward(x);  // First linear layer
-        reLu(h1);                    // Activation
+    // Forward pass
+    Tensor& forward(const Tensor& x) {
+        Tensor out1 = fc1.forward(x);  // pre-ReLU
 
-        Tensor out = fc2.forward(h1); // Second linear layer
-        softmax(out);                 // Softmax
+        // Resize h1_raw and h1 if batch size changed
+        if (h1_raw.shape() != out1.shape()) {
+            h1_raw = Tensor(out1.shape());
+            h1 = Tensor(out1.shape());
+        }
+        h1_raw.copyFrom(out1);
+        h1.copyFrom(out1);
+        reLu(h1);  // in-place ReLU
 
-        return out;                   // Final prediction
+        Tensor out2 = fc2.forward(h1);
+
+        if (logits.shape() != out2.shape())
+            logits = Tensor(out2.shape());
+        logits.copyFrom(out2);
+
+        return logits;
     }
-    Tensor backward(
-        const Tensor& x,
-        const Tensor& h1,
-        const Tensor& logits,
-        const std::vector<int>& labels,
-        float lr)
-    {
-        int batch = (int)x.shape()[0];
 
-        // 1. Compute grad_out for softmax+cross-entropy
+    // Backward pass
+    void backward(const Tensor& x, const std::vector<int>& labels) {
+        int batch = x.shape()[0];
+
         Tensor grad_out({(size_t)batch, 10});
-        softmaxCrossEntropyBackward(logits, labels, grad_out); // pass raw logits
+        softmaxCrossEntropyBackward(logits, labels, grad_out);
 
-        // 2. Backprop through second layer
         Tensor grad_h1 = fc2.backward(h1, grad_out);
+        Tensor grad_h1_relu = reLuBackward(h1_raw, grad_h1);
+        fc1.backward(x, grad_h1_relu);
+    }
 
-        // 3. ReLU backward
-        Tensor grad_h1_relu = reLuBackward(h1, grad_h1);
-
-        // 4. Backprop through first layer
-        Tensor grad_x = fc1.backward(x, grad_h1_relu);
-
-        // 5. Update weights
+    // update weights (calls for layer)
+    void step(float lr) {
         fc1.step(lr);
         fc2.step(lr);
-
-        return grad_x;
     }
-
 };
 
 #endif

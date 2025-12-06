@@ -6,13 +6,15 @@
 
  // Backward pass
 Tensor Linear::backward(const Tensor& x, const Tensor& grad_out) {
+    // grad_w = x^T @ grad_out
     Tensor x_T = x.transpose();
     Tensor gw = matmul(x_T, grad_out);
-    grad_w.copyFrom(gw);  // <-- must use copyFrom
+    grad_w.copyFrom(gw);
 
-    reduceSumRows(grad_out, grad_b); 
-    // grad_b.copyFrom(gb);  <-- if you compute gb as a Tensor
+    // sum over rows of grad_out
+    reduceSumRows(grad_out, grad_b);
 
+    // grad_x = grad_out @ W^T
     Tensor W_T = weights.transpose();
     Tensor grad_x = matmul(grad_out, W_T);
 
@@ -23,13 +25,16 @@ void Linear::step(float lr) {
     axpy(grad_w, weights, -lr);
     axpy(grad_b, bias, -lr);
 
-    // reset gradients
+    weights.toHost();
+    bias.toHost();
+
     for (size_t i = 0; i < grad_w.size(); i++) grad_w[i] = 0.f;
     for (size_t i = 0; i < grad_b.size(); i++) grad_b[i] = 0.f;
 
-    weights.toDevice();
-    bias.toDevice();
+    grad_w.toDevice();
+    grad_b.toDevice();
 }
+
 Tensor Linear::forward(const Tensor& x) {
     Tensor out = matmul(x, weights);
     addBias(out);

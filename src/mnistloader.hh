@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <iostream>
 
+
+// must first run the python script 
 inline uint32_t readBigEndian32(std::ifstream& f) {
     uint32_t x = 0;
     f.read(reinterpret_cast<char*>(&x), 4);

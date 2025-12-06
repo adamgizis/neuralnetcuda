@@ -3,6 +3,7 @@
 #include <vector>
 #include <numeric>
 #include <iostream>
+#include <cmath>
 
 #define CUDA_CHECK(val) cudaCheck((val), #val, __FILE__, __LINE__)
 inline void cudaCheck(cudaError_t err, const char* expr, const char* file, int line) {
@@ -21,8 +22,13 @@ public:
         size_ = 1;
         for (size_t s : shape_) size_ *= s;
 
+        // allocate and zero-initialize host memory
         host_ = new float[size_];
+        for (size_t i = 0; i < size_; ++i) host_[i] = 0.0f;
+
+        // allocate device memory and zero it
         CUDA_CHECK(cudaMalloc(&device_, size_ * sizeof(float)));
+        CUDA_CHECK(cudaMemset(device_, 0, size_ * sizeof(float)));
     }
 
     Tensor(const Tensor&) = delete;
@@ -43,6 +49,7 @@ public:
     const float& operator[](size_t i) const { return host_[i]; }
 
     float* host() { return host_; }
+    const float* host() const { return host_; }
 
     float* device() { return device_; }
     const float* device() const { return device_; }
@@ -60,8 +67,12 @@ public:
                               cudaMemcpyDeviceToHost));
     }
 
+    void zero() {
+        if (host_) for (size_t i = 0; i < size_; ++i) host_[i] = 0.0f;
+        if (device_) CUDA_CHECK(cudaMemset(device_, 0, size_ * sizeof(float)));
+    }
+
     Tensor transpose() const {
-        // Only 2D tensors supported
         if (shape_.size() != 2) {
             std::cerr << "transpose: only 2D tensors supported\n";
             std::exit(1);
@@ -80,15 +91,13 @@ public:
         t.toDevice();
         return t;
     }
-
-
     void copyFrom(const Tensor& src) {
-    if (size() != src.size()) {
-        std::cerr << "Tensor::copyFrom size mismatch\n";
-        std::exit(1);
+        if (size() != src.size()) {
+            std::cerr << "Tensor::copyFrom size mismatch\n";
+            std::exit(1);
+        }
+        CUDA_CHECK(cudaMemcpy(device(), src.device(), size() * sizeof(float), cudaMemcpyDeviceToDevice));
     }
-    CUDA_CHECK(cudaMemcpy(device(), src.device(), size() * sizeof(float), cudaMemcpyDeviceToDevice));
-}
 
 private:
     std::vector<size_t> shape_;
@@ -99,9 +108,11 @@ private:
 
     void cleanup() {
         if (host_)   delete[] host_;
-        if (device_) cudaFree(device_);
+        if (device_) {
+            cudaFree(device_);
+            device_ = nullptr;
+        }
         host_ = nullptr;
-        device_ = nullptr;
         size_ = 0;
     }
 

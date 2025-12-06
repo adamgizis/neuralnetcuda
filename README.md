@@ -1,9 +1,15 @@
 ## Implementation of a Basic Neural Network using CUDA
 
-For this project, I am implementing a basic neural network using CUDA and testing and benchmarking using the MNIST dataset. The neural network will include input layers, hidden layers, reLu activation with forward and backward propagation.
-I will then do benchmark testing of my NN on the MNIST dataset (https://git-disl.github.io/GTDLBench/datasets/mnist_datasets/).
+Implementation of a single hidden layer MLP for MNIST dataset with reLu and softmax using CUDA. Attempted matrix multiplication. Comparable python scripts in kera_benchmark.py.
 
+## To run
 
-## So Far
-So far i have the bench worklflow with a single hidden layer work on small arrays. I need to clean it up, increase the number of hidden layers, and then benchmark. This is a solo project.
+Must have Nvidia GPU to run. 
+To get MNIST dataset from kaggle, start virtual enviroment (requirements.txt )
+```python download_mnist.py```
+To run CUDA training 
+``` make
 
+./app
+
+```
