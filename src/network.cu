@@ -21,6 +21,35 @@ public:
 
         return out;                   // Final prediction
     }
+    Tensor backward(
+        const Tensor& x,
+        const Tensor& h1,
+        const Tensor& logits,
+        const std::vector<int>& labels,
+        float lr)
+    {
+        int batch = (int)x.shape()[0];
+
+        // 1. Compute grad_out for softmax+cross-entropy
+        Tensor grad_out({(size_t)batch, 10});
+        softmaxCrossEntropyBackward(logits, labels, grad_out); // pass raw logits
+
+        // 2. Backprop through second layer
+        Tensor grad_h1 = fc2.backward(h1, grad_out);
+
+        // 3. ReLU backward
+        Tensor grad_h1_relu = reLuBackward(h1, grad_h1);
+
+        // 4. Backprop through first layer
+        Tensor grad_x = fc1.backward(x, grad_h1_relu);
+
+        // 5. Update weights
+        fc1.step(lr);
+        fc2.step(lr);
+
+        return grad_x;
+    }
+
 };
 
 #endif
