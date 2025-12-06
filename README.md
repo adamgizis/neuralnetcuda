@@ -10,10 +10,8 @@ To get MNIST dataset from kaggle, start virtual enviroment (requirements.txt pro
 To run CUDA training 
 ```
 make
-
 ```
 
 ```
 ./app
-
 ```
