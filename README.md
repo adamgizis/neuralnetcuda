@@ -7,11 +7,7 @@ Implementation of a single hidden layer MLP for MNIST dataset with reLu and soft
 Must have Nvidia GPU to run. 
 To get MNIST dataset from kaggle, start virtual enviroment (requirements.txt provided)
 ```python download_mnist.py```
-To run CUDA training 
+To run CUDA training,
 ```
-make
-```
-
-```
-./app
+make; ./app
 ```
